@@ -144,7 +144,9 @@ async function startServer() {
       }
     } else {
       // General Voice Assistant
-      if (lower.includes("calendar") || lower.includes("schedule") || lower.includes("meeting") || lower.includes("agenda") || lower.includes("appointment")) {
+      if (lower.includes("task") || lower.includes("todo") || lower.includes("to-do") || lower.includes("checklist")) {
+        botReply = "Your Google Tasks account is integrated with Tilted Studio! You can inspect active deliverables, add new to-dos with due dates, and mark completed items directly from the Google Tasks tab.";
+      } else if (lower.includes("calendar") || lower.includes("schedule") || lower.includes("meeting") || lower.includes("agenda") || lower.includes("appointment")) {
         botReply = "Your Google Calendar is synchronized with Tilted Studio! With your permission, I can inspect your daily agenda, check free/busy availability, and help you schedule new appointments right from the Calendar tab.";
       } else if (lower.includes("architecture") || lower.includes("frame")) {
         botReply = "Pipecat is organized around frame processors! Audio, video, and control signals flow as typed Frame objects through pipelines. Upstream frames handle acknowledgments, while downstream frames carry audio and inference data.";

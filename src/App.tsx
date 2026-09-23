@@ -12,7 +12,8 @@ import {
   Terminal,
   ExternalLink,
   ShieldCheck,
-  Calendar
+  Calendar,
+  CheckSquare
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -24,6 +25,7 @@ import { PipelineArchitectureView } from "@/components/PipelineArchitectureView"
 import { InteractiveChatSimulator } from "@/components/InteractiveChatSimulator";
 import { ApiVerificationPanel } from "@/components/ApiVerificationPanel";
 import { GoogleCalendarPanel } from "@/components/GoogleCalendarPanel";
+import { GoogleTasksPanel } from "@/components/GoogleTasksPanel";
 import { 
   AVAILABLE_TRANSPORTS, 
   DEFAULT_TRANSPORT, 
@@ -33,7 +35,7 @@ import {
 } from "@/config";
 
 export const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<"console" | "simulator" | "calendar" | "workers" | "architecture" | "verify">("simulator");
+  const [activeTab, setActiveTab] = useState<"console" | "simulator" | "calendar" | "tasks" | "workers" | "architecture" | "verify">("simulator");
   const [selectedBotId, setSelectedBotId] = useState<string>("voice-assistant");
   const [transportType, setTransportType] = useState<TransportType>(DEFAULT_TRANSPORT);
 
@@ -115,6 +117,13 @@ export const App: React.FC = () => {
                 <span>Google Calendar</span>
               </TabsTrigger>
               <TabsTrigger 
+                value="tasks" 
+                className="text-xs px-2.5 h-7 text-[#A4A3B2] data-[state=active]:bg-[#1C1D25] data-[state=active]:text-[#F4F2F8] transition-all"
+              >
+                <CheckSquare className="size-3.5 mr-1.5 text-[#24D8ED]" />
+                <span>Google Tasks</span>
+              </TabsTrigger>
+              <TabsTrigger 
                 value="verify" 
                 className="text-xs px-2.5 h-7 text-[#A4A3B2] data-[state=active]:bg-[#1C1D25] data-[state=active]:text-[#F4F2F8] transition-all"
               >
@@ -172,6 +181,12 @@ export const App: React.FC = () => {
 
         {activeTab === "calendar" && (
           <GoogleCalendarPanel 
+            onSendToVoiceAgent={() => setActiveTab("simulator")}
+          />
+        )}
+
+        {activeTab === "tasks" && (
+          <GoogleTasksPanel 
             onSendToVoiceAgent={() => setActiveTab("simulator")}
           />
         )}
