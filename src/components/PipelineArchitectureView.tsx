@@ -116,13 +116,13 @@ export const PipelineArchitectureView: React.FC = () => {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary uppercase tracking-wider">
-              Pipecat Core
+              Tilted Core
             </span>
             <span className="text-xs text-muted-foreground">Frame-based Pipeline Architecture</span>
           </div>
           <h2 className="text-xl font-bold tracking-tight">FrameProcessor Pipeline Flow</h2>
           <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
-            In Pipecat, all data and control signals flow as <code className="text-primary font-mono text-xs">Frame</code> objects. 
+            In Tilted, all data and control signals flow as <code className="text-primary font-mono text-xs">Frame</code> objects. 
             Processors push downstream (input to output) and broadcast upstream for interruptions and errors.
           </p>
         </div>
@@ -224,7 +224,7 @@ export const PipelineArchitectureView: React.FC = () => {
             Zero-Delay Asynchronous Workers
           </h3>
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Pipecat&apos;s <code className="text-foreground font-mono">BaseWorker</code> and <code className="text-foreground font-mono">WorkerRunner</code> coordinate
+            Tilted&apos;s <code className="text-foreground font-mono">BaseWorker</code> and <code className="text-foreground font-mono">WorkerRunner</code> coordinate
             distributed or local workers over a pub/sub bus. Heavy tasks like vision inference or database sync run silently in parallel background tasks.
           </p>
         </Card>

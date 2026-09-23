@@ -1,14 +1,37 @@
-import React, { useState } from "react";
-import { Check, Plus, Trash2, Mic, Bot, Sparkles, Workflow, ArrowRight, Zap, RefreshCw } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { 
+  Workflow, 
+  ArrowRight, 
+  LogOut, 
+  Server, 
+  CheckCircle2, 
+  Cpu, 
+  Zap, 
+  Activity, 
+  Radio, 
+  RefreshCw, 
+  Send, 
+  Terminal, 
+  Play, 
+  Layers
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { MultiWorkerLoginPage } from "@/components/MultiWorkerLoginPage";
+import { logoutGoogle } from "@/lib/google-auth";
+import { saveOperatorProfile, recordBusEventLog } from "@/lib/firebase";
+import type { WorkerOperator } from "@/types";
 
-interface ShoppingItem {
+interface RegisteredWorker {
   id: string;
-  text: string;
-  completed: boolean;
+  name: string;
+  type: "root" | "subagent" | "service" | "bridge";
+  status: "active" | "ready" | "idle";
+  jobsCompleted: number;
+  latencyMs: number;
+  description: string;
 }
 
 interface WorkerDemoPanelProps {
@@ -20,252 +43,425 @@ export const WorkerDemoPanel: React.FC<WorkerDemoPanelProps> = ({
   onSimulateVoiceTurn,
   isSimulating = false,
 }) => {
-  const [items, setItems] = useState<ShoppingItem[]>([
-    { id: "item-1", text: "Organic oat milk", completed: false },
-    { id: "item-2", text: "Fresh sourdough bread", completed: true },
-    { id: "item-3", text: "Fair-trade coffee beans", completed: false },
-  ]);
-  const [newItemText, setNewItemText] = useState("");
-  const [workerLogs, setWorkerLogs] = useState<Array<{ time: string; worker: string; action: string }>>([
-    { time: "10:14:02", worker: "PipelineWorker", action: "User utterance: 'add organic oat milk'" },
-    { time: "10:14:03", worker: "WorkerBus", action: "Dispatched 'respond' job to 'ui' worker" },
-    { time: "10:14:03", worker: "UIWorker", action: "Executed update_list(add='Organic oat milk') [silent]" },
-  ]);
-
-  const handleToggleItem = (id: string) => {
-    setItems((prev) =>
-      prev.map((item) => {
-        if (item.id === id) {
-          const nextState = !item.completed;
-          logAction("UIWorker", `User manual toggle: '${item.text}' -> ${nextState ? 'done' : 'pending'}`);
-          return { ...item, completed: nextState };
-        }
-        return item;
-      })
-    );
-  };
-
-  const handleAddItem = (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!newItemText.trim()) return;
-    const text = newItemText.trim();
-    const newItem: ShoppingItem = {
-      id: `item-${Date.now()}`,
-      text,
-      completed: false,
-    };
-    setItems((prev) => [...prev, newItem]);
-    setNewItemText("");
-    logAction("UIWorker", `Direct mutation: added '${text}'`);
-  };
-
-  const handleDeleteItem = (id: string) => {
-    const item = items.find((i) => i.id === id);
-    setItems((prev) => prev.filter((i) => i.id !== id));
-    if (item) {
-      logAction("UIWorker", `Removed '${item.text}'`);
+  const [operator, setOperator] = useState<WorkerOperator | null>(() => {
+    try {
+      const saved = localStorage.getItem("tilted_multi_worker_operator");
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
     }
+  });
+
+  const [workers, setWorkers] = useState<RegisteredWorker[]>([
+    {
+      id: "pipeline-root",
+      name: "PipelineWorker (Voice Engine)",
+      type: "root",
+      status: "active",
+      jobsCompleted: 142,
+      latencyMs: 1.2,
+      description: "Root pipeline worker wrapping VAD, turn detection, and audio frame routing.",
+    },
+    {
+      id: "llm-context-worker",
+      name: "LLMContextWorker (Context & Tools)",
+      type: "subagent",
+      status: "ready",
+      jobsCompleted: 89,
+      latencyMs: 2.8,
+      description: "Maintains LLMContext aggregators, conversation memory, and @tool schemas.",
+    },
+    {
+      id: "worker-registry",
+      name: "WorkerRegistry (Node Discovery)",
+      type: "service",
+      status: "ready",
+      jobsCompleted: 312,
+      latencyMs: 0.4,
+      description: "Local & distributed worker tracking, heartbeat monitoring, and bus watchers.",
+    },
+    {
+      id: "bus-bridge-proxy",
+      name: "WorkerBus Bridge (Network Node)",
+      type: "bridge",
+      status: "active",
+      jobsCompleted: 64,
+      latencyMs: 4.1,
+      description: "Network queue proxy connecting in-process bus with Redis/PGMQ distributed brokers.",
+    },
+  ]);
+
+  const [customJobAction, setCustomJobAction] = useState("sync_turn_context");
+  const [targetWorkerId, setTargetWorkerId] = useState("llm-context-worker");
+  const [isDispatching, setIsDispatching] = useState(false);
+
+  const [workerLogs, setWorkerLogs] = useState<Array<{ 
+    time: string; 
+    worker: string; 
+    action: string; 
+    type: "job" | "system" | "bus" 
+  }>>([
+    { time: "10:20:01", worker: "WorkerRunner", action: "Runner initialized with auto_end=False on port 3000", type: "system" },
+    { time: "10:20:02", worker: "WorkerRegistry", action: "Registered 4 local and bridged workers", type: "system" },
+    { time: "10:20:03", worker: "WorkerBus", action: "AsyncQueueBus message loop established (latency: 0.3ms)", type: "bus" },
+    { time: "10:20:04", worker: "PipelineWorker", action: "Pushed StartFrame downstream through audio processors", type: "job" },
+  ]);
+
+  useEffect(() => {
+    if (operator) {
+      logAction("WorkerRegistry", `Operator '${operator.name}' (${operator.role}) authenticated via ${operator.authType}`, "system");
+      saveOperatorProfile(operator);
+    }
+  }, [operator]);
+
+  const handleLogout = async () => {
+    try {
+      await logoutGoogle();
+    } catch {
+      // ignore
+    }
+    localStorage.removeItem("tilted_multi_worker_operator");
+    setOperator(null);
   };
 
-  const logAction = (worker: string, action: string) => {
+  const logAction = (worker: string, action: string, type: "job" | "system" | "bus" = "job") => {
     const time = new Date().toLocaleTimeString();
-    setWorkerLogs((prev) => [{ time, worker, action }, ...prev.slice(0, 15)]);
-  };
-
-  const handleVoiceCommand = (commandText: string) => {
-    logAction("PipelineWorker", `Received speech turn: "${commandText}"`);
-    logAction("WorkerBus", "Publishing job payload to UIWorker...");
-    
-    // Local state reactive update
-    const lower = commandText.toLowerCase();
-    if (lower.includes("add") || lower.includes("milk") || lower.includes("berries") || lower.includes("eggs")) {
-      const added = lower.includes("berries") ? "Fresh blueberries" : lower.includes("eggs") ? "Cage-free eggs" : "Organic Greek yogurt";
-      setItems(prev => [...prev, { id: `item-${Date.now()}`, text: added, completed: false }]);
-      logAction("UIWorker", `Auto-executed update_list(add='${added}')`);
-    } else if (lower.includes("check off") || lower.includes("bread") || lower.includes("milk")) {
-      setItems(prev => prev.map((item, idx) => idx === 0 ? { ...item, completed: true } : item));
-      logAction("UIWorker", `Auto-executed update_list(check='item')`);
-    }
-
-    if (onSimulateVoiceTurn) {
-      onSimulateVoiceTurn(commandText);
+    setWorkerLogs((prev) => [{ time, worker, action, type }, ...prev.slice(0, 24)]);
+    if (operator?.id) {
+      recordBusEventLog(operator.id, "session-live", { worker, action, eventType: type });
     }
   };
+
+  const dispatchJob = (workerId: string, actionName: string) => {
+    setIsDispatching(true);
+    const target = workers.find((w) => w.id === workerId);
+    const targetName = target ? target.name.split(" ")[0] : workerId;
+
+    logAction("WorkerBus", `Dispatched RPC self.job('${targetName}', action='${actionName}')`, "bus");
+
+    setTimeout(() => {
+      setWorkers((prev) =>
+        prev.map((w) =>
+          w.id === workerId ? { ...w, jobsCompleted: w.jobsCompleted + 1 } : w
+        )
+      );
+      logAction(targetName, `Executed job '${actionName}' -> JobStatus.COMPLETED (code: 200)`, "job");
+      setIsDispatching(false);
+    }, 350);
+  };
+
+  const handleBroadcastInterruption = () => {
+    setIsDispatching(true);
+    logAction("PipelineWorker", "Broadcasting InterruptionFrame upstream & downstream...", "job");
+    setTimeout(() => {
+      logAction("WorkerBus", "WorkerBus propagated InterruptionFrame: flushed active processor queues", "bus");
+      setIsDispatching(false);
+    }, 200);
+  };
+
+  const handleProbeHeartbeat = () => {
+    setIsDispatching(true);
+    logAction("WorkerRegistry", "Dispatching self.job_group('*', 'heartbeat_ping')", "bus");
+    setTimeout(() => {
+      workers.forEach((w) => {
+        logAction(w.name.split(" ")[0], `Heartbeat ACK: alive (latency: ${w.latencyMs}ms)`, "job");
+      });
+      setIsDispatching(false);
+    }, 300);
+  };
+
+  if (!operator) {
+    return <MultiWorkerLoginPage onLoginSuccess={(op) => setOperator(op)} />;
+  }
 
   return (
-    <div id="worker-demo-panel" className="h-full flex flex-col p-4 md:p-6 overflow-y-auto max-w-5xl mx-auto w-full gap-6">
-      {/* Pattern Banner */}
-      <div className="bg-muted/40 border border-border rounded-xl p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+    <div id="worker-demo-panel" className="h-full flex flex-col p-4 md:p-6 overflow-y-auto max-w-5xl mx-auto w-full gap-5">
+      {/* Operator Status Header */}
+      <div className="bg-[#171820] border border-[#292B3A] rounded-xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-md">
+        <div className="flex items-center gap-3">
+          {operator.avatarUrl ? (
+            <img
+              src={operator.avatarUrl}
+              alt={operator.name}
+              className="size-9 rounded-full object-cover border border-[#7047FF]/50"
+            />
+          ) : (
+            <div className="size-9 rounded-full bg-[#7047FF]/20 border border-[#7047FF]/40 flex items-center justify-center text-[#845CFF] font-bold text-sm">
+              {operator.name.charAt(0).toUpperCase()}
+            </div>
+          )}
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-[#F4F2F8]">{operator.name}</span>
+              <Badge variant="outline" className="text-[10px] py-0 px-1.5 border-[#7047FF]/40 text-[#845CFF] bg-[#7047FF]/10">
+                {operator.role}
+              </Badge>
+              <Badge variant="outline" className="text-[10px] py-0 px-1.5 border-emerald-500/30 text-emerald-400 bg-emerald-500/10 flex items-center gap-1">
+                <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                Bus Active
+              </Badge>
+              <Badge variant="outline" className="text-[10px] py-0 px-1.5 border-amber-500/30 text-amber-400 bg-amber-500/10 flex items-center gap-1">
+                <span className="size-1.5 rounded-full bg-amber-400" />
+                Firestore (us-east1)
+              </Badge>
+            </div>
+            <div className="text-[11px] text-[#A4A3B2] flex items-center gap-2">
+              <span>{operator.email}</span>
+              <span>&bull;</span>
+              <span className="font-mono text-[10px]">{operator.cluster}</span>
+              <span>&bull;</span>
+              <span className="text-[10px] text-[#A4A3B2]">Session ID: {operator.id}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 self-end sm:self-center">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleLogout}
+            className="h-7 text-xs border-[#292B3A] bg-[#12141A] text-[#A4A3B2] hover:text-red-400 hover:border-red-900/50 hover:bg-red-950/20 transition-all flex items-center gap-1.5"
+          >
+            <LogOut className="size-3" />
+            <span>Sign Out</span>
+          </Button>
+        </div>
+      </div>
+
+      {/* Cluster Overview Banner */}
+      <div className="bg-[#171820] border border-[#292B3A] rounded-xl p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-md">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary uppercase tracking-wider">
-              Multi-Worker Pattern
+            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-[#7047FF]/15 border border-[#7047FF]/30 text-[#845CFF] uppercase tracking-wider">
+              Distributed Architecture
             </span>
-            <span className="text-xs text-muted-foreground">examples/multi-worker/ui-worker/shopping-list</span>
+            <span className="text-xs text-[#A4A3B2] font-mono">WorkerBus &amp; WorkerRegistry RPC</span>
           </div>
-          <h2 className="text-lg font-bold tracking-tight">Shopping List — Every Voice Turn Drives UI</h2>
-          <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
-            Voice pipeline runs in parallel with a dedicated <code className="bg-muted px-1.5 py-0.5 rounded text-xs">UIWorker</code>. 
-            Speech remains conversational and never mutates state directly; the worker silently synchronizes the on-screen snapshot.
+          <h2 className="text-lg font-bold tracking-tight text-[#F4F2F8]">
+            Multi-Worker Cluster Management
+          </h2>
+          <p className="text-xs text-[#A4A3B2] mt-1 max-w-2xl leading-relaxed">
+            Coordinate cooperating workers with the shared <code className="bg-[#12141A] px-1.5 py-0.5 rounded border border-[#292B3A] text-xs font-mono text-[#F4F2F8]">WorkerBus</code>. 
+            Root pipeline workers, context subagents, and bridge proxies exchange typed messages and non-blocking RPC jobs.
           </p>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-3 shrink-0">
           <div className="text-right hidden sm:block">
-            <div className="text-xs font-medium text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5 justify-end">
-              <span className="size-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              Live Bus Connected
+            <div className="text-xs font-medium text-emerald-400 flex items-center gap-1.5 justify-end">
+              <span className="size-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              In-Process Bus Connected
             </div>
-            <div className="text-xs text-muted-foreground">Snapshot synced (3 items)</div>
+            <div className="text-xs text-[#A4A3B2] font-mono mt-0.5">
+              {workers.length} registered workers &bull; 0 packet drops
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Shopping List Live Surface */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+        {/* Active Registered Workers */}
         <div className="lg:col-span-7 flex flex-col gap-4">
-          <Card className="p-5 flex flex-col h-full bg-card border-border shadow-xs">
-            <div className="flex items-center justify-between pb-3 border-b border-border">
+          <Card className="p-4 bg-[#171820] border-[#292B3A] shadow-md flex flex-col gap-3">
+            <div className="flex items-center justify-between pb-3 border-b border-[#292B3A]">
               <div className="flex items-center gap-2">
-                <div className="size-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary font-bold text-sm">
-                  UI
+                <div className="size-7 rounded-lg bg-[#7047FF]/20 border border-[#7047FF]/40 flex items-center justify-center text-[#845CFF]">
+                  <Cpu className="size-4" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-sm">Screen Snapshot State</h3>
-                  <p className="text-xs text-muted-foreground">Live list controlled by voice turns or clicks</p>
+                  <h3 className="font-semibold text-xs text-[#F4F2F8]">Registered Workers</h3>
+                  <p className="text-[11px] text-[#A4A3B2]">Active units coordinated by WorkerRunner</p>
                 </div>
               </div>
-              <span className="text-xs bg-muted px-2 py-1 rounded-md font-mono">
-                {items.filter((i) => !i.completed).length} pending
-              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleProbeHeartbeat}
+                disabled={isDispatching}
+                className="h-7 text-xs border-[#292B3A] bg-[#12141A] text-[#A4A3B2] hover:text-[#F4F2F8] gap-1.5"
+              >
+                <RefreshCw className={`size-3 ${isDispatching ? "animate-spin" : ""}`} />
+                <span>Probe Nodes</span>
+              </Button>
             </div>
 
-            {/* List items */}
-            <div className="flex-1 my-4 space-y-2 min-h-48">
-              {items.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-48 text-muted-foreground text-sm">
-                  <p>Shopping list is empty.</p>
-                  <p className="text-xs mt-1">Speak or type an item to add it!</p>
-                </div>
-              ) : (
-                items.map((item) => (
-                  <div
-                    key={item.id}
-                    onClick={() => handleToggleItem(item.id)}
-                    className={`flex items-center justify-between p-3 rounded-lg border transition-all cursor-pointer group select-none ${
-                      item.completed
-                        ? "bg-muted/30 border-muted text-muted-foreground line-through"
-                        : "bg-background border-border hover:border-primary/50 text-foreground"
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div
-                        className={`size-5 rounded flex items-center justify-center border transition-colors ${
-                          item.completed
-                            ? "bg-primary border-primary text-primary-foreground"
-                            : "border-muted-foreground/40 group-hover:border-primary"
+            <div className="space-y-2.5">
+              {workers.map((worker) => (
+                <div
+                  key={worker.id}
+                  className="p-3 rounded-lg border border-[#292B3A] bg-[#12141A] hover:border-[#7047FF]/50 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-2.5"
+                >
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-semibold text-[#F4F2F8]">{worker.name}</span>
+                      <Badge
+                        variant="outline"
+                        className={`text-[10px] py-0 px-1.5 ${
+                          worker.status === "active"
+                            ? "border-emerald-500/40 text-emerald-400 bg-emerald-500/10"
+                            : "border-cyan-500/40 text-cyan-400 bg-cyan-500/10"
                         }`}
                       >
-                        {item.completed && <Check className="size-3.5" />}
+                        {worker.status}
+                      </Badge>
+                    </div>
+                    <p className="text-[11px] text-[#A4A3B2] leading-relaxed">
+                      {worker.description}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-3 shrink-0 self-end sm:self-center">
+                    <div className="text-right">
+                      <div className="text-[10px] text-[#A4A3B2]">RPC Jobs</div>
+                      <div className="font-mono text-xs font-bold text-[#F4F2F8]">
+                        {worker.jobsCompleted}
                       </div>
-                      <span className="text-sm font-medium">{item.text}</span>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-[10px] text-[#A4A3B2]">Latency</div>
+                      <div className="font-mono text-xs text-cyan-400">
+                        {worker.latencyMs}ms
+                      </div>
                     </div>
                     <Button
-                      variant="ghost"
                       size="sm"
-                      className="opacity-0 group-hover:opacity-100 transition-opacity size-7 p-0 text-muted-foreground hover:text-destructive"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteItem(item.id);
-                      }}
+                      variant="ghost"
+                      onClick={() => dispatchJob(worker.id, "ping_worker")}
+                      disabled={isDispatching}
+                      className="h-7 px-2 text-xs text-[#845CFF] hover:bg-[#7047FF]/20"
                     >
-                      <Trash2 className="size-3.5" />
+                      Ping
                     </Button>
                   </div>
-                ))
-              )}
+                </div>
+              ))}
             </div>
+          </Card>
 
-            {/* Add item form */}
-            <form onSubmit={handleAddItem} className="flex gap-2 pt-3 border-t border-border">
-              <Input
-                placeholder="Add grocery item manually..."
-                value={newItemText}
-                onChange={(e) => setNewItemText(e.target.value)}
-                className="text-sm"
-              />
-              <Button type="submit" size="sm" className="gap-1 shrink-0">
-                <Plus className="size-4" />
-                Add
+          {/* Quick Actions & RPC Control */}
+          <Card className="p-4 bg-[#171820] border-[#292B3A] shadow-md">
+            <h4 className="text-xs font-semibold text-[#F4F2F8] flex items-center gap-2 mb-2.5">
+              <Zap className="size-3.5 text-[#845CFF]" />
+              Quick RPC Commands
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleBroadcastInterruption}
+                disabled={isDispatching}
+                className="h-8 text-xs justify-start border-[#292B3A] bg-[#12141A] text-[#F4F2F8] hover:bg-[#1C1D25] gap-2"
+              >
+                <Radio className="size-3.5 text-red-400 shrink-0" />
+                <span className="truncate">Broadcast InterruptionFrame</span>
               </Button>
-            </form>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => dispatchJob("llm-context-worker", "sync_turn_context")}
+                disabled={isDispatching}
+                className="h-8 text-xs justify-start border-[#292B3A] bg-[#12141A] text-[#F4F2F8] hover:bg-[#1C1D25] gap-2"
+              >
+                <Layers className="size-3.5 text-cyan-400 shrink-0" />
+                <span className="truncate">Sync LLMContext Aggregator</span>
+              </Button>
+            </div>
           </Card>
         </div>
 
-        {/* Voice Trigger & Bus Telemetry */}
+        {/* Inter-Worker Telemetry & Job Dispatch Console */}
         <div className="lg:col-span-5 flex flex-col gap-4">
-          {/* Quick Voice Turns */}
-          <Card className="p-5 bg-card border-border shadow-xs">
-            <h3 className="text-sm font-semibold flex items-center gap-2 mb-2">
-              <Mic className="size-4 text-primary" />
-              Simulate Voice Turn
+          {/* Dispatch Job Form */}
+          <Card className="p-4 bg-[#171820] border-[#292B3A] shadow-md">
+            <h3 className="text-xs font-semibold text-[#F4F2F8] flex items-center gap-2 mb-1">
+              <Send className="size-3.5 text-[#845CFF]" />
+              Dispatch Custom Worker Job
             </h3>
-            <p className="text-xs text-muted-foreground mb-4">
-              Click a sample speech utterance to test the multi-worker handoff without configuring external microphones.
+            <p className="text-[11px] text-[#A4A3B2] mb-3">
+              Execute cross-worker RPC over the shared WorkerBus.
             </p>
 
-            <div className="flex flex-col gap-2">
-              <button
-                type="button"
-                onClick={() => handleVoiceCommand("Add fresh blueberries to the list")}
-                disabled={isSimulating}
-                className="text-left text-xs p-2.5 rounded-lg border border-border bg-background hover:bg-muted/50 transition-colors flex items-center justify-between group disabled:opacity-50"
-              >
-                <span>&ldquo;Add fresh blueberries to the list&rdquo;</span>
-                <ArrowRight className="size-3.5 text-muted-foreground group-hover:text-primary transition-colors" />
-              </button>
-              <button
-                type="button"
-                onClick={() => handleVoiceCommand("Check off the sourdough bread")}
-                disabled={isSimulating}
-                className="text-left text-xs p-2.5 rounded-lg border border-border bg-background hover:bg-muted/50 transition-colors flex items-center justify-between group disabled:opacity-50"
-              >
-                <span>&ldquo;Check off the sourdough bread&rdquo;</span>
-                <ArrowRight className="size-3.5 text-muted-foreground group-hover:text-primary transition-colors" />
-              </button>
-              <button
-                type="button"
-                onClick={() => handleVoiceCommand("What's left on my shopping list?")}
-                disabled={isSimulating}
-                className="text-left text-xs p-2.5 rounded-lg border border-border bg-background hover:bg-muted/50 transition-colors flex items-center justify-between group disabled:opacity-50"
-              >
-                <span>&ldquo;What&apos;s left on my shopping list?&rdquo;</span>
-                <ArrowRight className="size-3.5 text-muted-foreground group-hover:text-primary transition-colors" />
-              </button>
+            <div className="space-y-2.5">
+              <div>
+                <label className="text-[10px] font-medium text-[#A4A3B2] uppercase tracking-wider block mb-1">
+                  Target Worker
+                </label>
+                <select
+                  value={targetWorkerId}
+                  onChange={(e) => setTargetWorkerId(e.target.value)}
+                  className="w-full h-8 px-2.5 rounded-lg bg-[#12141A] border border-[#292B3A] text-xs text-[#F4F2F8] focus:outline-none focus:ring-1 focus:ring-[#7047FF]"
+                >
+                  {workers.map((w) => (
+                    <option key={w.id} value={w.id}>
+                      {w.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-medium text-[#A4A3B2] uppercase tracking-wider block mb-1">
+                  Job Handler Name
+                </label>
+                <div className="flex gap-2">
+                  <Input
+                    value={customJobAction}
+                    onChange={(e) => setCustomJobAction(e.target.value)}
+                    placeholder="e.g. process_turn, reset_cache"
+                    className="h-8 bg-[#12141A] border-[#292B3A] text-xs text-[#F4F2F8] font-mono"
+                  />
+                  <Button
+                    size="sm"
+                    onClick={() => dispatchJob(targetWorkerId, customJobAction)}
+                    disabled={isDispatching || !customJobAction.trim()}
+                    className="h-8 px-3 text-xs bg-[#7047FF] hover:bg-[#845CFF] text-white shrink-0"
+                  >
+                    Dispatch
+                  </Button>
+                </div>
+              </div>
             </div>
           </Card>
 
           {/* Inter-Worker Telemetry Log */}
-          <Card className="p-5 bg-card border-border shadow-xs flex-1 flex flex-col">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold flex items-center gap-2">
-                <Workflow className="size-4 text-primary" />
-                Inter-Worker Bus Trace
-              </h3>
-              <span className="text-[10px] text-muted-foreground uppercase font-mono">WorkerBus</span>
+          <Card className="p-4 bg-[#171820] border-[#292B3A] shadow-md flex-1 flex flex-col">
+            <div className="flex items-center justify-between mb-2.5 pb-2 border-b border-[#292B3A]">
+              <div className="flex items-center gap-2">
+                <Terminal className="size-3.5 text-[#845CFF]" />
+                <h3 className="text-xs font-semibold text-[#F4F2F8]">Inter-Worker Bus Trace</h3>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setWorkerLogs([])}
+                className="h-6 px-2 text-[10px] text-[#A4A3B2] hover:text-[#F4F2F8]"
+              >
+                Clear
+              </Button>
             </div>
 
-            <div className="flex-1 bg-muted/40 rounded-lg p-3 overflow-y-auto max-h-48 font-mono text-[11px] space-y-2 border border-border/50">
-              {workerLogs.map((log, index) => (
-                <div key={index} className="flex flex-col gap-0.5">
-                  <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-                    <span className="font-semibold text-primary">{log.worker}</span>
-                    <span>{log.time}</span>
-                  </div>
-                  <div className="text-foreground/90 pl-1 border-l-2 border-primary/30">
-                    {log.action}
-                  </div>
+            <div className="flex-1 bg-[#12141A] rounded-lg p-2.5 overflow-y-auto max-h-56 font-mono text-[11px] space-y-2 border border-[#292B3A]">
+              {workerLogs.length === 0 ? (
+                <div className="text-center py-6 text-[11px] text-[#A4A3B2]">
+                  No bus messages recorded yet.
                 </div>
-              ))}
+              ) : (
+                workerLogs.map((log, index) => (
+                  <div key={index} className="flex flex-col gap-0.5">
+                    <div className="flex items-center justify-between text-[10px] text-[#A4A3B2]">
+                      <span className={`font-semibold ${
+                        log.type === "bus" ? "text-cyan-400" : log.type === "system" ? "text-[#845CFF]" : "text-emerald-400"
+                      }`}>
+                        {log.worker}
+                      </span>
+                      <span>{log.time}</span>
+                    </div>
+                    <div className="text-[#F4F2F8] pl-1.5 border-l-2 border-[#292B3A]">
+                      {log.action}
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </Card>
         </div>

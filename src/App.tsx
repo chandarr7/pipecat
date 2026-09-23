@@ -10,7 +10,6 @@ import {
   Activity, 
   Info,
   Terminal,
-  ExternalLink,
   ShieldCheck,
   Calendar,
   CheckSquare
@@ -52,17 +51,12 @@ export const App: React.FC = () => {
               <Sparkles className="size-4 text-white" />
               <span className="absolute -bottom-0.5 -right-0.5 size-2 rounded-full bg-[#20E99A] ring-2 ring-[#0D0F13] animate-pulse" />
             </div>
-            <div className="flex flex-col">
-              <div className="flex items-center gap-2">
-                <span className="font-extrabold text-sm tracking-tight text-[#F4F2F8] flex items-center gap-1.5">
-                  Tilted Studio
-                </span>
-                <span className="text-[10px] font-mono uppercase font-semibold px-1.5 py-0.5 rounded border border-[#7047FF]/40 bg-[#7047FF]/15 text-[#845CFF] tracking-wider">
-                  Pyvex Voice
-                </span>
-              </div>
-              <span className="text-[10px] text-[#A4A3B2] font-mono tracking-tight hidden md:inline">
-                Real-Time Multimodal Voice AI
+            <div className="flex items-center gap-2">
+              <span className="font-extrabold text-sm tracking-tight text-[#F4F2F8] flex items-center gap-1.5">
+                Tilted Studio
+              </span>
+              <span className="text-[10px] font-mono uppercase font-semibold px-1.5 py-0.5 rounded border border-[#7047FF]/40 bg-[#7047FF]/15 text-[#845CFF] tracking-wider">
+                Pyvex Voice
               </span>
             </div>
           </div>
@@ -107,7 +101,7 @@ export const App: React.FC = () => {
                 className="text-xs px-2.5 h-7 text-[#A4A3B2] data-[state=active]:bg-[#1C1D25] data-[state=active]:text-[#F4F2F8] data-[state=active]:shadow-sm transition-all"
               >
                 <MessageSquare className="size-3.5 mr-1.5 text-[#845CFF]" />
-                <span>Interactive Bot</span>
+                <span>Voice Stream</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="calendar" 
@@ -142,7 +136,7 @@ export const App: React.FC = () => {
                 className="text-xs px-2.5 h-7 text-[#A4A3B2] data-[state=active]:bg-[#1C1D25] data-[state=active]:text-[#F4F2F8] transition-all"
               >
                 <Layers className="size-3.5 mr-1.5 text-[#F5BD24]" />
-                <span>Pipeline</span>
+                <span>Architecture</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="console" 
@@ -232,7 +226,7 @@ export const App: React.FC = () => {
         <div className="flex items-center gap-3">
           <span className="flex items-center gap-1.5">
             <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            Pipecat Node Host: Online (Port 3000)
+            Tilted Node Host: Online (Port 3000)
           </span>
           <span className="hidden sm:inline">&bull;</span>
           <span className="hidden sm:inline font-mono">
@@ -241,16 +235,6 @@ export const App: React.FC = () => {
         </div>
         <div className="flex items-center gap-3">
           <span>Transport: <span className="font-mono text-foreground">{transportType}</span></span>
-          <span>&bull;</span>
-          <a
-            href="https://github.com/pipecat-ai/pipecat"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hover:text-primary transition-colors flex items-center gap-1"
-          >
-            Pipecat Docs
-            <ExternalLink className="size-3" />
-          </a>
         </div>
       </footer>
     </div>

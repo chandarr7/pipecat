@@ -10,9 +10,7 @@ import {
   Play, 
   AudioWaveform,
   CheckCircle2,
-  Settings2,
-  Radio,
-  MessageSquare
+  Settings2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,7 +21,6 @@ import {
   DEFAULT_ELEVENLABS_VOICE, 
   type ElevenLabsVoice 
 } from "@/config";
-import { VoiceOrb, type VoiceOrbState } from "@/components/VoiceOrb";
 
 interface ChatMessage {
   id: string;
@@ -111,11 +108,6 @@ export const InteractiveChatSimulator: React.FC<InteractiveChatSimulatorProps> =
     status: "success" | "error";
     message: string;
   } | null>(null);
-
-  // Pyvex Voice Orb integration state
-  const [simViewMode, setSimViewMode] = useState<"orb" | "transcript">("orb");
-  const [orbSessionActive, setOrbSessionActive] = useState(false);
-  const [orbInternalState, setOrbInternalState] = useState<VoiceOrbState>("idle");
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const animationFrameRef = useRef<number | null>(null);
@@ -357,7 +349,7 @@ export const InteractiveChatSimulator: React.FC<InteractiveChatSimulatorProps> =
   const handleAuditionVoice = async () => {
     if (isAuditioning || isBotSpeaking) return;
     setIsAuditioning(true);
-    const sampleText = `Hello, I'm ${activeVoice.name}. This is the default female voice for ElevenLabs text-to-speech in Pipecat.`;
+    const sampleText = `Hello, I'm ${activeVoice.name}. This is the default female voice for ElevenLabs text-to-speech in Tilted.`;
     await speakText(sampleText);
     setIsAuditioning(false);
   };
@@ -418,7 +410,7 @@ export const InteractiveChatSimulator: React.FC<InteractiveChatSimulatorProps> =
         throw new Error("Pipeline API error");
       }
     } catch {
-      const fallbackText = `I processed your request "${text}" through the Pipecat audio pipeline with ElevenLabs TTS.`;
+      const fallbackText = `I processed your request "${text}" through the Tilted audio pipeline with ElevenLabs TTS.`;
       setMessages((prev) => [
         ...prev,
         {
@@ -715,157 +707,64 @@ export const InteractiveChatSimulator: React.FC<InteractiveChatSimulatorProps> =
 
       {/* Main Conversation Canvas */}
       <Card className="flex-1 flex flex-col p-4 bg-[#0D0F13]/95 border-[#292B3A] overflow-hidden min-h-64 shadow-xl shadow-black/50 backdrop-blur-xl">
-        {/* View Mode Switcher Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-[#292B3A] mb-3 shrink-0">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-[#F4F2F8] tracking-tight">
-              {simViewMode === "orb" ? "Pyvex Living Spiral Visualizer" : "Turn Interaction Transcript"}
-            </span>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#7047FF]/15 border border-[#7047FF]/30 text-[#845CFF]">
-              {messages.length} Turns
-            </span>
-            {isBotSpeaking && (
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#20E99A]/10 border border-[#20E99A]/30 text-[#20E99A] animate-pulse flex items-center gap-1">
-                <span className="size-1.5 rounded-full bg-[#20E99A]" />
-                Audio Output Active
-              </span>
-            )}
-          </div>
-
-          <div className="flex items-center gap-1 bg-[#12141A] p-0.5 rounded-lg border border-[#292B3A]">
-            <button
-              type="button"
-              onClick={() => setSimViewMode("orb")}
-              className={`px-3 py-1 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all ${
-                simViewMode === "orb"
-                  ? "bg-[#7047FF] text-white shadow-[0_0_12px_rgba(112,71,255,0.4)]"
-                  : "text-[#A4A3B2] hover:text-[#F4F2F8]"
-              }`}
+        <div className="flex-1 overflow-y-auto space-y-3 pr-2">
+          {messages.map((msg) => (
+            <div
+              key={msg.id}
+              className={`flex gap-3 text-sm ${msg.role === "user" ? "justify-end" : "justify-start"}`}
             >
-              <Radio className="size-3.5" />
-              <span>Voice Orb</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setSimViewMode("transcript")}
-              className={`px-3 py-1 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all ${
-                simViewMode === "transcript"
-                  ? "bg-[#7047FF] text-white shadow-[0_0_12px_rgba(112,71,255,0.4)]"
-                  : "text-[#A4A3B2] hover:text-[#F4F2F8]"
-              }`}
-            >
-              <MessageSquare className="size-3.5" />
-              <span>Transcript</span>
-            </button>
-          </div>
-        </div>
-
-        {/* View Mode Content */}
-        {simViewMode === "orb" ? (
-          <div className="flex-1 flex flex-col items-center justify-center overflow-y-auto py-2">
-            <VoiceOrb
-              state={
-                isProcessing
-                  ? "thinking"
-                  : isBotSpeaking
-                  ? "assistant_speaking"
-                  : orbSessionActive
-                  ? orbInternalState
-                  : "idle"
-              }
-              onStateChange={(st) => setOrbInternalState(st)}
-              onStartVoice={async () => {
-                setOrbSessionActive(true);
-                setOrbInternalState("listening");
-              }}
-              onEndVoice={() => {
-                setOrbSessionActive(false);
-                setOrbInternalState("idle");
-                if (activeAudioRef.current) {
-                  activeAudioRef.current.pause();
-                  activeAudioRef.current = null;
-                }
-                if ("speechSynthesis" in window) {
-                  window.speechSynthesis.cancel();
-                }
-                setIsBotSpeaking(false);
-              }}
-              onInterrupt={() => {
-                if (activeAudioRef.current) {
-                  activeAudioRef.current.pause();
-                  activeAudioRef.current = null;
-                }
-                if ("speechSynthesis" in window) {
-                  window.speechSynthesis.cancel();
-                }
-                setIsBotSpeaking(false);
-                setOrbInternalState("listening");
-              }}
-              voiceName={activeVoice.name}
-              lastSpeakerText={messages[messages.length - 1]?.text}
-              externalAudioElement={activeAudioRef.current}
-            />
-          </div>
-        ) : (
-          <div className="flex-1 overflow-y-auto space-y-3 pr-2">
-            {messages.map((msg) => (
+              {msg.role === "bot" && (
+                <div className="size-7 rounded-lg bg-[#7047FF]/15 border border-[#7047FF]/30 text-[#845CFF] flex items-center justify-center shrink-0 mt-0.5 shadow-[0_0_10px_rgba(112,71,255,0.2)]">
+                  <Bot className="size-4" />
+                </div>
+              )}
               <div
-                key={msg.id}
-                className={`flex gap-3 text-sm ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+                className={`max-w-[80%] rounded-xl px-4 py-2.5 ${
+                  msg.role === "user"
+                    ? "bg-gradient-to-r from-[#7047FF] to-[#845CFF] text-white shadow-[0_0_15px_rgba(112,71,255,0.3)]"
+                    : "bg-[#171820] border border-[#292B3A] text-[#F4F2F8]"
+                }`}
               >
-                {msg.role === "bot" && (
-                  <div className="size-7 rounded-lg bg-[#7047FF]/15 border border-[#7047FF]/30 text-[#845CFF] flex items-center justify-center shrink-0 mt-0.5 shadow-[0_0_10px_rgba(112,71,255,0.2)]">
-                    <Bot className="size-4" />
-                  </div>
-                )}
-                <div
-                  className={`max-w-[80%] rounded-xl px-4 py-2.5 ${
-                    msg.role === "user"
-                      ? "bg-gradient-to-r from-[#7047FF] to-[#845CFF] text-white shadow-[0_0_15px_rgba(112,71,255,0.3)]"
-                      : "bg-[#171820] border border-[#292B3A] text-[#F4F2F8]"
-                  }`}
-                >
-                  <p className="leading-relaxed">{msg.text}</p>
-                  <div className="flex items-center justify-between gap-2 mt-1.5 text-[10px] opacity-75">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[#A4A3B2]">{msg.timestamp}</span>
-                      {msg.voiceInfo && (
-                        <>
-                          <span className="text-[#666879]">&bull;</span>
-                          <span className="font-medium text-[#A4A3B2]">{msg.voiceInfo.provider}: {msg.voiceInfo.name}</span>
-                        </>
-                      )}
-                    </div>
-                    {msg.metrics && (
-                      <span className="font-mono text-[#20E99A]">
-                        TTFB: {msg.metrics.ttfb}ms | {msg.metrics.latency}ms
-                      </span>
+                <p className="leading-relaxed">{msg.text}</p>
+                <div className="flex items-center justify-between gap-2 mt-1.5 text-[10px] opacity-75">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[#A4A3B2]">{msg.timestamp}</span>
+                    {msg.voiceInfo && (
+                      <>
+                        <span className="text-[#666879]">&bull;</span>
+                        <span className="font-medium text-[#A4A3B2]">{msg.voiceInfo.provider}: {msg.voiceInfo.name}</span>
+                      </>
                     )}
                   </div>
-                </div>
-                {msg.role === "user" && (
-                  <div className="size-7 rounded-lg bg-[#7047FF] text-white flex items-center justify-center shrink-0 mt-0.5 shadow-[0_0_10px_rgba(112,71,255,0.4)]">
-                    <User className="size-4" />
-                  </div>
-                )}
-              </div>
-            ))}
-            {isProcessing && (
-              <div className="flex gap-3 text-sm justify-start animate-fade-in">
-                <div className="size-7 rounded-lg bg-[#7047FF]/15 border border-[#7047FF]/30 text-[#845CFF] flex items-center justify-center shrink-0">
-                  <Bot className="size-4 animate-spin" />
-                </div>
-                <div className="bg-[#171820] border border-[#292B3A] rounded-xl px-4 py-2 text-xs text-[#A4A3B2] flex items-center gap-2">
-                  <span className="size-1.5 bg-[#845CFF] rounded-full animate-bounce" />
-                  <span className="size-1.5 bg-[#24D8ED] rounded-full animate-bounce [animation-delay:0.2s]" />
-                  <span className="size-1.5 bg-[#20E99A] rounded-full animate-bounce [animation-delay:0.4s]" />
-                  <span>Pyvex Voice synthesizing neural audio stream ({activeVoice.name})...</span>
+                  {msg.metrics && (
+                    <span className="font-mono text-[#20E99A]">
+                      TTFB: {msg.metrics.ttfb}ms | {msg.metrics.latency}ms
+                    </span>
+                  )}
                 </div>
               </div>
-            )}
-            <div ref={messagesEndRef} />
-          </div>
-        )}
+              {msg.role === "user" && (
+                <div className="size-7 rounded-lg bg-[#7047FF] text-white flex items-center justify-center shrink-0 mt-0.5 shadow-[0_0_10px_rgba(112,71,255,0.4)]">
+                  <User className="size-4" />
+                </div>
+              )}
+            </div>
+          ))}
+          {isProcessing && (
+            <div className="flex gap-3 text-sm justify-start animate-fade-in">
+              <div className="size-7 rounded-lg bg-[#7047FF]/15 border border-[#7047FF]/30 text-[#845CFF] flex items-center justify-center shrink-0">
+                <Bot className="size-4 animate-spin" />
+              </div>
+              <div className="bg-[#171820] border border-[#292B3A] rounded-xl px-4 py-2 text-xs text-[#A4A3B2] flex items-center gap-2">
+                <span className="size-1.5 bg-[#845CFF] rounded-full animate-bounce" />
+                <span className="size-1.5 bg-[#24D8ED] rounded-full animate-bounce [animation-delay:0.2s]" />
+                <span className="size-1.5 bg-[#20E99A] rounded-full animate-bounce [animation-delay:0.4s]" />
+                <span>Pyvex Voice synthesizing neural audio stream ({activeVoice.name})...</span>
+              </div>
+            </div>
+          )}
+          <div ref={messagesEndRef} />
+        </div>
 
         {/* Quick Sample Prompts */}
         <div className="pt-3 border-t border-[#292B3A] flex items-center gap-2 overflow-x-auto text-xs py-1 scrollbar-none">

@@ -14,14 +14,13 @@ async function startServer() {
     botId: string;
     createdAt: number;
     state: string;
-    shoppingList: Array<{ id: string; text: string; completed: boolean }>;
   }>();
 
   // API Routes
   app.get("/api/health", (_req: Request, res: Response) => {
     res.json({
       status: "ok",
-      framework: "Pipecat",
+      framework: "Tilted",
       version: "1.3.0",
       timestamp: new Date().toISOString(),
     });
@@ -36,18 +35,6 @@ async function startServer() {
           name: "Voice Assistant",
           description: "Streaming STT, LLM context aggregation, and low-latency TTS.",
           pipeline: ["SmallWebRTCTransport.in", "DeepgramSTT", "LLMUserAggregator", "GeminiLLM", "CartesiaTTS", "SmallWebRTCTransport.out", "LLMAssistantAggregator"]
-        },
-        {
-          id: "shopping-list",
-          name: "Shopping List UIWorker",
-          description: "Dual-worker pattern: voice pipeline + silent UIWorker updating live screen state.",
-          pipeline: ["PipelineWorker (voice)", "WorkerBus", "UIWorker (list manager)"]
-        },
-        {
-          id: "form-fill",
-          name: "Form Fill Assistant",
-          description: "Accessible voice-guided form completion with focus highlighting.",
-          pipeline: ["PipelineWorker", "FormWorker", "RTVIObserver"]
         }
       ]
     });
@@ -56,18 +43,13 @@ async function startServer() {
   // Start bot session
   app.post("/api/start", (req: Request, res: Response) => {
     const botId = req.body?.botId || "voice-assistant";
-    const sessionId = `pipecat_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const sessionId = `tilted_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     
     activeSessions.set(sessionId, {
       id: sessionId,
       botId,
       createdAt: Date.now(),
       state: "ready",
-      shoppingList: [
-        { id: "item-1", text: "Organic oat milk", completed: false },
-        { id: "item-2", text: "Fresh sourdough bread", completed: true },
-        { id: "item-3", text: "Fair-trade coffee beans", completed: false }
-      ]
     });
 
     res.json({
@@ -80,7 +62,7 @@ async function startServer() {
       iceConfig: {
         iceServers: [{ urls: ["stun:stun.l.google.com:19302"] }]
       },
-      message: "Pipecat session initialized"
+      message: "Tilted session initialized"
     });
   });
 
@@ -88,7 +70,7 @@ async function startServer() {
   app.post("/api/offer", (req: Request, res: Response) => {
     res.json({
       type: "answer",
-      sdp: "v=0\r\no=- 0 0 IN IP4 127.0.0.1\r\ns=Pipecat WebRTC Simulator\r\nt=0 0\r\n",
+      sdp: "v=0\r\no=- 0 0 IN IP4 127.0.0.1\r\ns=Tilted WebRTC Simulator\r\nt=0 0\r\n",
       status: "negotiated"
     });
   });
@@ -98,68 +80,25 @@ async function startServer() {
     const { prompt, botId, sessionId } = req.body || {};
     const textPrompt = (prompt || "").trim();
     
-    const session = sessionId && activeSessions.get(sessionId);
-    const list = session?.shoppingList || [
-      { id: "item-1", text: "Organic oat milk", completed: false },
-      { id: "item-2", text: "Fresh sourdough bread", completed: true },
-      { id: "item-3", text: "Fair-trade coffee beans", completed: false }
-    ];
-
     let botReply = "";
-    let uiAction: { type: string; item?: string; items?: string[] } | null = null;
-
     const lower = textPrompt.toLowerCase();
 
-    if (botId === "shopping-list") {
-      if (lower.includes("add") || lower.includes("buy") || lower.includes("need")) {
-        const itemText = textPrompt.replace(/add|buy|need|to my list|to the list|please/gi, "").trim();
-        const cleanItem = itemText.replace(/^(and|,|\s)+/g, "").trim();
-        if (cleanItem) {
-          list.push({ id: `item-${Date.now()}`, text: cleanItem, completed: false });
-          uiAction = { type: "add_item", item: cleanItem };
-          botReply = `I've added "${cleanItem}" to your shopping list.`;
-        } else {
-          botReply = "What would you like me to add to the shopping list?";
-        }
-      } else if (lower.includes("check off") || lower.includes("done") || lower.includes("complete")) {
-        const matched = list.find(item => lower.includes(item.text.toLowerCase()));
-        if (matched) {
-          matched.completed = true;
-          uiAction = { type: "set_checked", item: matched.text };
-          botReply = `Checked off "${matched.text}".`;
-        } else if (list.length > 0) {
-          list[0].completed = true;
-          uiAction = { type: "set_checked", item: list[0].text };
-          botReply = `Checked off "${list[0].text}".`;
-        } else {
-          botReply = "Your shopping list is currently empty.";
-        }
-      } else if (lower.includes("what's left") || lower.includes("show list") || lower.includes("summary")) {
-        const remaining = list.filter(i => !i.completed).map(i => i.text);
-        botReply = remaining.length > 0 
-          ? `You still have ${remaining.length} items remaining: ${remaining.join(", ")}.`
-          : "All items on your shopping list are checked off!";
-      } else {
-        botReply = `I heard "${textPrompt}". You can ask me to add groceries, check off items, or summarize what is left on screen.`;
-      }
+    // General Voice Assistant
+    if (lower.includes("task") || lower.includes("todo") || lower.includes("to-do") || lower.includes("checklist")) {
+      botReply = "Your Google Tasks account is integrated with Tilted Studio! You can inspect active deliverables, add new to-dos with due dates, and mark completed items directly from the Google Tasks tab.";
+    } else if (lower.includes("calendar") || lower.includes("schedule") || lower.includes("meeting") || lower.includes("agenda") || lower.includes("appointment")) {
+      botReply = "Your Google Calendar is synchronized with Tilted Studio! With your permission, I can inspect your daily agenda, check free/busy availability, and help you schedule new appointments right from the Calendar tab.";
+    } else if (lower.includes("architecture") || lower.includes("frame")) {
+      botReply = "Tilted is organized around frame processors! Audio, video, and control signals flow as typed Frame objects through pipelines. Upstream frames handle acknowledgments, while downstream frames carry audio and inference data.";
+    } else if (lower.includes("turn") || lower.includes("interruption")) {
+      botReply = "Turn detection uses user turn start/stop strategies such as VADUserTurnStartStrategy. When a user begins speaking, an InterruptionFrame is broadcast to immediately cancel playback and flush active queues.";
+    } else if (lower.includes("worker") || lower.includes("bus")) {
+      botReply = "Workers are the top-level execution units in Tilted. BaseWorker manages activation and RPC jobs, while WorkerBus handles pub/sub messaging across multiple cooperating workers.";
     } else {
-      // General Voice Assistant
-      if (lower.includes("task") || lower.includes("todo") || lower.includes("to-do") || lower.includes("checklist")) {
-        botReply = "Your Google Tasks account is integrated with Tilted Studio! You can inspect active deliverables, add new to-dos with due dates, and mark completed items directly from the Google Tasks tab.";
-      } else if (lower.includes("calendar") || lower.includes("schedule") || lower.includes("meeting") || lower.includes("agenda") || lower.includes("appointment")) {
-        botReply = "Your Google Calendar is synchronized with Tilted Studio! With your permission, I can inspect your daily agenda, check free/busy availability, and help you schedule new appointments right from the Calendar tab.";
-      } else if (lower.includes("architecture") || lower.includes("frame")) {
-        botReply = "Pipecat is organized around frame processors! Audio, video, and control signals flow as typed Frame objects through pipelines. Upstream frames handle acknowledgments, while downstream frames carry audio and inference data.";
-      } else if (lower.includes("turn") || lower.includes("interruption")) {
-        botReply = "Turn detection uses user turn start/stop strategies such as VADUserTurnStartStrategy. When a user begins speaking, an InterruptionFrame is broadcast to immediately cancel playback and flush active queues.";
-      } else if (lower.includes("worker") || lower.includes("bus")) {
-        botReply = "Workers are the top-level execution units in Pipecat. BaseWorker manages activation and RPC jobs, while WorkerBus handles pub/sub messaging across multiple cooperating workers.";
-      } else {
-        botReply = `I received your voice turn: "${textPrompt}". In a production deployment, this flows through STT -> Context Aggregator -> LLM -> TTS -> Audio Output in under 400 milliseconds.`;
-      }
+      botReply = `I received your voice turn: "${textPrompt}". In a production deployment, this flows through STT -> Context Aggregator -> LLM -> TTS -> Audio Output in under 400 milliseconds.`;
     }
 
-    // Generate real Pipecat frame timeline for the event monitor
+    // Generate real Tilted frame timeline for the event monitor
     const timestamp = Date.now();
     const frameEvents = [
       {
@@ -201,8 +140,6 @@ async function startServer() {
 
     res.json({
       text: botReply,
-      uiAction,
-      shoppingList: list,
       events: frameEvents,
       voice: {
         provider: "ElevenLabs",
@@ -450,19 +387,6 @@ async function startServer() {
     }
   });
 
-  // Shopping list query
-  app.get("/api/shopping-list", (req: Request, res: Response) => {
-    const sessionId = (req.query.sessionId as string) || "";
-    const session = activeSessions.get(sessionId);
-    res.json({
-      items: session?.shoppingList || [
-        { id: "item-1", text: "Organic oat milk", completed: false },
-        { id: "item-2", text: "Fresh sourdough bread", completed: true },
-        { id: "item-3", text: "Fair-trade coffee beans", completed: false }
-      ]
-    });
-  });
-
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
@@ -479,7 +403,7 @@ async function startServer() {
   }
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Pipecat server running on http://0.0.0.0:${PORT}`);
+    console.log(`Tilted server running on http://0.0.0.0:${PORT}`);
   });
 }
 

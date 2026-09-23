@@ -1,0 +1,63 @@
+{
+  "entities": {
+    "Operator": {
+      "title": "Operator",
+      "description": "Registered operator and user authentication profile",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique operator user ID" },
+        "email": { "type": "string", "description": "Operator email address" },
+        "name": { "type": "string", "description": "Operator display name" },
+        "role": { "type": "string", "description": "Operator access role" },
+        "authType": { "type": "string", "description": "Authentication method" },
+        "cluster": { "type": "string", "description": "Assigned worker cluster" },
+        "lastLogin": { "type": "string", "description": "ISO timestamp of last login" },
+        "createdAt": { "type": "string", "description": "ISO timestamp of registration" }
+      },
+      "required": ["id", "email", "name", "role", "authType", "createdAt"]
+    },
+    "Session": {
+      "title": "Session",
+      "description": "Voice bot pipeline execution session",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique session ID" },
+        "operatorId": { "type": "string", "description": "ID of operator owning this session" },
+        "botId": { "type": "string", "description": "Target bot template identifier" },
+        "state": { "type": "string", "description": "Current pipeline state" },
+        "voiceProvider": { "type": "string", "description": "Active voice provider e.g. ElevenLabs" },
+        "totalTurns": { "type": "number", "description": "Number of voice turns executed" },
+        "createdAt": { "type": "string", "description": "ISO timestamp of session initialization" }
+      },
+      "required": ["id", "operatorId", "botId", "state", "createdAt"]
+    },
+    "BusEvent": {
+      "title": "BusEvent",
+      "description": "Inter-worker bus event log and RPC telemetry",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique event identifier" },
+        "sessionId": { "type": "string", "description": "Associated session ID" },
+        "worker": { "type": "string", "description": "Originating worker name" },
+        "action": { "type": "string", "description": "Action or RPC job description" },
+        "eventType": { "type": "string", "description": "Classification of bus event" },
+        "timestamp": { "type": "string", "description": "ISO timestamp of occurrence" }
+      },
+      "required": ["id", "sessionId", "worker", "action", "eventType", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/operators/{operatorId}": {
+      "schema": "Operator",
+      "description": "Stores operator profiles keyed by their operator ID"
+    },
+    "/operators/{operatorId}/sessions/{sessionId}": {
+      "schema": "Session",
+      "description": "Stores active and past voice pipeline sessions for an operator"
+    },
+    "/operators/{operatorId}/sessions/{sessionId}/bus_events/{eventId}": {
+      "schema": "BusEvent",
+      "description": "Stores individual inter-worker bus events and RPC jobs for a session"
+    }
+  }
+}

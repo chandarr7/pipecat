@@ -314,7 +314,7 @@ function ConsoleShell({
   transportOptions,
   connectParams,
   startBotParams,
-  titleText = "Pipecat Console",
+  titleText = "Tilted Console",
   logo,
   noLogo = false,
   headerSlot,

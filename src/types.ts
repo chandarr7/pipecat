@@ -31,3 +31,14 @@ export interface SimulationSession {
   status: 'idle' | 'ready' | 'active' | 'speaking' | 'listening';
   createdAt: string;
 }
+
+export interface WorkerOperator {
+  id: string;
+  name: string;
+  email: string;
+  role: 'Super Administrator' | 'Worker Operator' | 'UI Controller' | 'Pipeline Supervisor';
+  cluster: string;
+  authType: 'google' | 'credentials' | 'demo';
+  avatarUrl?: string;
+  lastLogin: string;
+}
