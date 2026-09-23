@@ -1,0 +1,11 @@
+{
+  "name": "Pipecat Voice Agent Platform",
+  "description": "Interactive Web Console and Voice/Multimodal AI Agent Platform for Pipecat.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
