@@ -1,0 +1,4 @@
+node_modules/
+lib/
+# Copied from ../app.ts by the prebuild script; not a separate source of truth.
+src/app.ts
