@@ -42,6 +42,7 @@ MANIFEST
 .DS_Store
 .env*
 fly.toml
+node_modules/
 
 # Examples
 examples/**/node_modules/
