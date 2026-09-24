@@ -62,11 +62,17 @@ export const ApiVerificationPanel: React.FC = () => {
   const [synthesisLoading, setSynthesisLoading] = useState(false);
   const [synthesisNotice, setSynthesisNotice] = useState<string | null>(null);
 
+  const viteApiKey = (import.meta.env.VITE_ELEVENLABS_API_KEY as string | undefined) || "";
+
   const runVerification = async () => {
     setLoading(true);
     setSynthesisNotice(null);
     try {
-      const res = await fetch("/api/tts/verify");
+      const headers: Record<string, string> = {};
+      if (viteApiKey) {
+        headers["xi-api-key"] = viteApiKey;
+      }
+      const res = await fetch("/api/tts/verify", { headers });
       const data = await res.json();
       setResult(data);
     } catch (err: unknown) {
@@ -120,12 +126,17 @@ export const ApiVerificationPanel: React.FC = () => {
     setSynthesisLoading(true);
     setSynthesisNotice(null);
     try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (viteApiKey) {
+        headers["xi-api-key"] = viteApiKey;
+      }
       const response = await fetch("/api/tts/elevenlabs", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
           text: testSynthesisText,
           voiceId,
+          apiKey: viteApiKey || undefined,
         }),
       });
 

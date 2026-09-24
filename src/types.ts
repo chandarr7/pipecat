@@ -1,11 +1,24 @@
 export type TransportType = 'smallwebrtc' | 'websocket' | 'mock';
 
+export type TTSProviderType = 'elevenlabs' | 'cartesia' | 'deepgram' | 'webspeech';
+
+export interface BotTTSConfig {
+  provider: TTSProviderType;
+  model: string;
+  voiceId: string;
+  voiceName: string;
+  stability?: number;
+  similarityBoost?: number;
+}
+
 export interface BotTemplate {
   id: string;
   name: string;
   description: string;
   category: 'Assistant' | 'Multi-Worker' | 'Specialized' | 'Telephony';
   features: string[];
+  ttsProvider?: TTSProviderType;
+  ttsConfig?: BotTTSConfig;
   pipeline: {
     stt: string;
     llm: string;

@@ -143,9 +143,9 @@ async function startServer() {
       events: frameEvents,
       voice: {
         provider: "ElevenLabs",
-        name: "Rachel",
+        name: "Sarah",
         gender: "female",
-        voiceId: process.env.ELEVENLABS_VOICE_ID || "21m00Tcm4TlvDq8ikWAM",
+        voiceId: process.env.ELEVENLABS_VOICE_ID || "EXAVITQu4vr4xnSDxMaL",
       },
       metrics: {
         ttfb: Math.floor(65 + Math.random() * 25),
@@ -156,19 +156,30 @@ async function startServer() {
   });
 
   // TTS configuration status
-  app.get("/api/tts/config", (_req: Request, res: Response) => {
-    const configuredVoiceId = process.env.ELEVENLABS_VOICE_ID || "21m00Tcm4TlvDq8ikWAM";
+  app.get("/api/tts/config", (req: Request, res: Response) => {
+    const configuredVoiceId = process.env.ELEVENLABS_VOICE_ID || "EXAVITQu4vr4xnSDxMaL";
+    const apiKey =
+      (req.headers["xi-api-key"] as string) ||
+      process.env.VITE_ELEVENLABS_API_KEY ||
+      process.env.ELEVENLABS_API_KEY;
     res.json({
-      hasApiKey: Boolean(process.env.ELEVENLABS_API_KEY),
+      hasApiKey: Boolean(apiKey),
       configuredVoiceId,
       defaultVoiceId: configuredVoiceId,
       provider: "ElevenLabs",
+      model: "eleven_turbo_v2_5",
+      isViteKeyConfigured: Boolean(process.env.VITE_ELEVENLABS_API_KEY),
     });
   });
 
   // ElevenLabs Account Subscription & Balance inspection
-  app.get("/api/tts/account", async (_req: Request, res: Response) => {
-    const apiKey = process.env.ELEVENLABS_API_KEY;
+  app.get("/api/tts/account", async (req: Request, res: Response) => {
+    const apiKey =
+      (req.headers["xi-api-key"] as string) ||
+      (req.query.key as string) ||
+      process.env.VITE_ELEVENLABS_API_KEY ||
+      process.env.ELEVENLABS_API_KEY;
+
     if (!apiKey) {
       return res.json({ hasApiKey: false, message: "No API key configured" });
     }
@@ -195,7 +206,7 @@ async function startServer() {
       const voicesData = voicesRes.ok ? await voicesRes.json() : { voices: [] };
       const userData = userRes.ok ? await userRes.json() : {};
 
-      const configuredVoiceId = process.env.ELEVENLABS_VOICE_ID || "21m00Tcm4TlvDq8ikWAM";
+      const configuredVoiceId = process.env.ELEVENLABS_VOICE_ID || "EXAVITQu4vr4xnSDxMaL";
       const targetVoice = voicesData.voices?.find((v: { voice_id: string }) => v.voice_id === configuredVoiceId);
 
       const used = subData.character_count ?? 0;
@@ -216,8 +227,8 @@ async function startServer() {
           : null,
         configuredVoice: {
           id: configuredVoiceId,
-          name: targetVoice?.name || "Boo - Warm & Expressive",
-          category: targetVoice?.category || "professional",
+          name: targetVoice?.name || "Sarah - Mature, Reassuring, Confident",
+          category: targetVoice?.category || "premade",
           isLibraryVoice: targetVoice?.category !== "premade",
         }
       });
@@ -228,7 +239,12 @@ async function startServer() {
 
   // Comprehensive ElevenLabs API Verification endpoint
   app.get("/api/tts/verify", async (req: Request, res: Response) => {
-    const apiKey = process.env.ELEVENLABS_API_KEY;
+    const apiKey =
+      (req.query.key as string) ||
+      (req.headers["xi-api-key"] as string) ||
+      process.env.VITE_ELEVENLABS_API_KEY ||
+      process.env.ELEVENLABS_API_KEY;
+
     if (!apiKey) {
       return res.json({
         configured: false,
@@ -297,7 +313,7 @@ async function startServer() {
         voiceCount: voicesList.length,
         premadeCount: voicesList.filter((v: any) => v.category === "premade").length,
         clonedCount: voicesList.filter((v: any) => v.category === "cloned").length,
-        configuredVoiceId: process.env.ELEVENLABS_VOICE_ID || "21m00Tcm4TlvDq8ikWAM",
+        configuredVoiceId: process.env.ELEVENLABS_VOICE_ID || "EXAVITQu4vr4xnSDxMaL",
         voices: voicesList,
       });
     } catch (err: unknown) {
@@ -314,9 +330,14 @@ async function startServer() {
   // ElevenLabs TTS Synthesis endpoint
   app.post("/api/tts/elevenlabs", async (req: Request, res: Response) => {
     try {
-      const { text, voiceId } = req.body || {};
-      const targetVoice = voiceId || process.env.ELEVENLABS_VOICE_ID || "21m00Tcm4TlvDq8ikWAM"; // Rachel (Default Female)
-      const apiKey = process.env.ELEVENLABS_API_KEY;
+      const { text, voiceId, apiKey: clientApiKey, modelId: requestedModelId } = req.body || {};
+      const targetVoice = voiceId || process.env.ELEVENLABS_VOICE_ID || "EXAVITQu4vr4xnSDxMaL"; // Sarah (Default Premade Female)
+      const apiKey =
+        (req.headers["xi-api-key"] as string) ||
+        clientApiKey ||
+        process.env.VITE_ELEVENLABS_API_KEY ||
+        process.env.ELEVENLABS_API_KEY;
+      const modelId = requestedModelId || "eleven_turbo_v2_5";
 
       if (!text) {
         return res.status(400).json({ error: "Missing text for TTS synthesis" });
@@ -332,7 +353,7 @@ async function startServer() {
           },
           body: JSON.stringify({
             text,
-            model_id: "eleven_turbo_v2_5",
+            model_id: modelId,
             voice_settings: {
               stability: 0.5,
               similarity_boost: 0.8,
