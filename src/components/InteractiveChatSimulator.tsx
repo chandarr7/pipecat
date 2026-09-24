@@ -22,9 +22,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { 
-  ELEVENLABS_FEMALE_VOICES, 
-  DEFAULT_ELEVENLABS_VOICE, 
+import {
+  ELEVENLABS_VOICES,
+  DEFAULT_ELEVENLABS_VOICE,
   ELEVENLABS_MODELS, 
   DEFAULT_ELEVENLABS_MODEL, 
   getBotTtsConfig, 
@@ -199,8 +199,8 @@ export const InteractiveChatSimulator: React.FC<InteractiveChatSimulatorProps> =
   }, [viteElevenLabsApiKey]);
 
   const availableVoices = customVoice
-    ? [customVoice, ...ELEVENLABS_FEMALE_VOICES]
-    : ELEVENLABS_FEMALE_VOICES;
+    ? [customVoice, ...ELEVENLABS_VOICES]
+    : ELEVENLABS_VOICES;
 
   const activeVoice: ElevenLabsVoice =
     availableVoices.find((v) => v.id === selectedVoiceId) || DEFAULT_ELEVENLABS_VOICE;

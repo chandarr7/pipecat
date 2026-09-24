@@ -63,6 +63,104 @@ export const ELEVENLABS_FEMALE_VOICES: ElevenLabsVoice[] = [
     gender: 'female',
     description: 'Velvety British female voice with warmth and clarity',
   },
+  {
+    id: 'FGY2WhTYpPnrIDTdsKH5',
+    name: 'Laura',
+    gender: 'female',
+    description: 'Sunny, enthusiastic American voice with a quirky attitude',
+  },
+  {
+    id: 'XrExE9yKIg1WjnnlVkGX',
+    name: 'Matilda',
+    gender: 'female',
+    description: 'Knowledgeable, professional voice with a pleasing alto pitch',
+  },
+  {
+    id: '8DzKSPdgEQPaK5vKG0Rs',
+    name: 'Vanessa',
+    gender: 'female',
+    description: 'Cute, upbeat voice suited for social media narration',
+  },
+  {
+    id: 'kdnRe2koJdOK4Ovxn2DI',
+    name: 'Eryn',
+    gender: 'female',
+    description: 'Hyper-realistic, natural conversational voice',
+  },
+  {
+    id: 'EST9Ui6982FZPSi7gCHi',
+    name: 'Elise',
+    gender: 'female',
+    description: 'Warm, natural, and engaging voice for explainers and editorial content',
+  },
+];
+
+export const ELEVENLABS_MALE_VOICES: ElevenLabsVoice[] = [
+  {
+    id: 'CwhRBWXzGAHq8TQ4Fs17',
+    name: 'Roger',
+    gender: 'male',
+    description: 'Laid-back, casual, resonant voice for conversation',
+  },
+  {
+    id: 'IKne3meq5aSn9XLyUdCD',
+    name: 'Charlie',
+    gender: 'male',
+    description: 'Deep, confident, energetic Australian voice',
+  },
+  {
+    id: 'JBFqnCBsd6RMkjVDRZzb',
+    name: 'George',
+    gender: 'male',
+    description: 'Warm, captivating British storyteller voice',
+  },
+  {
+    id: 'N2lVS1w4EtoT3dr4eOWO',
+    name: 'Callum',
+    gender: 'male',
+    description: 'Husky, gravelly voice with an unsettling edge',
+  },
+  {
+    id: 'TX3LPaxmHKxFdv7VOQHJ',
+    name: 'Liam',
+    gender: 'male',
+    description: 'Energetic, confident voice for social media creators',
+  },
+  {
+    id: 'bIHbv24MWmeRgasZH58o',
+    name: 'Will',
+    gender: 'male',
+    description: 'Relaxed, chill, conversational optimist voice',
+  },
+  {
+    id: 'cjVigY5qzO86Huf0OWal',
+    name: 'Eric',
+    gender: 'male',
+    description: 'Smooth, trustworthy tenor, well suited to agentic use cases',
+  },
+  {
+    id: 'iP95p4xoKVk53GoZ742B',
+    name: 'Chris',
+    gender: 'male',
+    description: 'Charming, down-to-earth, casual voice',
+  },
+  {
+    id: 'nPczCjzI2devNBz1zQrb',
+    name: 'Brian',
+    gender: 'male',
+    description: 'Deep, resonant, comforting voice for narration',
+  },
+  {
+    id: 'onwK4e9ZLuTAKqWW03F9',
+    name: 'Daniel',
+    gender: 'male',
+    description: 'Steady, formal British broadcaster voice',
+  },
+];
+
+export const ELEVENLABS_VOICES: ElevenLabsVoice[] = [
+  ...ELEVENLABS_FEMALE_VOICES,
+  ...ELEVENLABS_MALE_VOICES,
 ];
 
 export const DEFAULT_ELEVENLABS_VOICE = ELEVENLABS_FEMALE_VOICES[0];
