@@ -2,6 +2,50 @@ import express, { Request, Response } from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 
+try {
+  process.loadEnvFile();
+} catch {
+  // No .env file present; rely on the process environment as-is.
+}
+
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3.6-flash";
+
+async function generateBotReply(prompt: string, botId: string): Promise<string> {
+  const apiKey = process.env.GOOGLE_API_KEY;
+  if (!apiKey) {
+    return `[Gemini not configured] I received: "${prompt}". Set GOOGLE_API_KEY to enable live replies.`;
+  }
+
+  const systemPrompt =
+    botId === "customer-support"
+      ? "You are an empathetic customer support agent for Tilted Studio. Keep replies concise and conversational, suited for being spoken aloud."
+      : "You are Tilted Studio's voice assistant, an expert on the Pipecat real-time AI framework. Keep replies concise and conversational, suited for being spoken aloud.";
+
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: systemPrompt }] },
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Gemini API returned HTTP ${response.status}: ${errText.slice(0, 300)}`);
+  }
+
+  const data = await response.json();
+  const text = data.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text || "").join("");
+  if (!text) {
+    throw new Error("Gemini API returned no text in response");
+  }
+  return text;
+}
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -75,28 +119,26 @@ async function startServer() {
     });
   });
 
-  // Simulated Voice Turn Pipeline Execution (STT -> LLM -> TTS -> UIWorker)
-  app.post("/api/simulate/turn", (req: Request, res: Response) => {
-    const { prompt, botId, sessionId } = req.body || {};
+  // Live Voice Turn Pipeline Execution (STT -> Gemini LLM -> TTS -> UIWorker)
+  app.post("/api/simulate/turn", async (req: Request, res: Response) => {
+    const { prompt, botId } = req.body || {};
     const textPrompt = (prompt || "").trim();
-    
-    let botReply = "";
-    const lower = textPrompt.toLowerCase();
 
-    // General Voice Assistant
-    if (lower.includes("task") || lower.includes("todo") || lower.includes("to-do") || lower.includes("checklist")) {
-      botReply = "Your Google Tasks account is integrated with Tilted Studio! You can inspect active deliverables, add new to-dos with due dates, and mark completed items directly from the Google Tasks tab.";
-    } else if (lower.includes("calendar") || lower.includes("schedule") || lower.includes("meeting") || lower.includes("agenda") || lower.includes("appointment")) {
-      botReply = "Your Google Calendar is synchronized with Tilted Studio! With your permission, I can inspect your daily agenda, check free/busy availability, and help you schedule new appointments right from the Calendar tab.";
-    } else if (lower.includes("architecture") || lower.includes("frame")) {
-      botReply = "Tilted is organized around frame processors! Audio, video, and control signals flow as typed Frame objects through pipelines. Upstream frames handle acknowledgments, while downstream frames carry audio and inference data.";
-    } else if (lower.includes("turn") || lower.includes("interruption")) {
-      botReply = "Turn detection uses user turn start/stop strategies such as VADUserTurnStartStrategy. When a user begins speaking, an InterruptionFrame is broadcast to immediately cancel playback and flush active queues.";
-    } else if (lower.includes("worker") || lower.includes("bus")) {
-      botReply = "Workers are the top-level execution units in Tilted. BaseWorker manages activation and RPC jobs, while WorkerBus handles pub/sub messaging across multiple cooperating workers.";
-    } else {
-      botReply = `I received your voice turn: "${textPrompt}". In a production deployment, this flows through STT -> Context Aggregator -> LLM -> TTS -> Audio Output in under 400 milliseconds.`;
+    if (!textPrompt) {
+      return res.status(400).json({ error: "Missing prompt for voice turn" });
     }
+
+    const turnStart = Date.now();
+    let botReply: string;
+    try {
+      botReply = await generateBotReply(textPrompt, botId || "voice-assistant");
+    } catch (err: unknown) {
+      console.error("Gemini generation failed:", err);
+      return res.status(502).json({
+        error: err instanceof Error ? err.message : "LLM generation failed",
+      });
+    }
+    const ttfb = Date.now() - turnStart;
 
     // Generate real Tilted frame timeline for the event monitor
     const timestamp = Date.now();
@@ -127,7 +169,7 @@ async function startServer() {
         timestamp: new Date(timestamp - 50).toLocaleTimeString(),
         type: "LLMResponseStartFrame",
         direction: "downstream",
-        summary: "First token generated (TTFB: 70ms)",
+        summary: `First token generated (TTFB: ${ttfb}ms)`,
       },
       {
         id: `ev-${timestamp}-5`,
@@ -148,9 +190,9 @@ async function startServer() {
         voiceId: process.env.ELEVENLABS_VOICE_ID || "EXAVITQu4vr4xnSDxMaL",
       },
       metrics: {
-        ttfb: Math.floor(65 + Math.random() * 25),
-        latency: Math.floor(180 + Math.random() * 40),
-        tokensPerSec: Math.floor(45 + Math.random() * 15),
+        ttfb,
+        latency: Date.now() - turnStart,
+        tokensPerSec: Math.round((botReply.split(" ").length / Math.max(ttfb, 1)) * 1000),
       }
     });
   });
