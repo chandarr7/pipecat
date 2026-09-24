@@ -29,6 +29,8 @@ eggs/
 lib/
 # Pipecat UI snapshot vendored into the CLI templates has a lib/ of its own
 !src/pipecat/cli/templates/client/_pipecat_ui/src/lib/
+# Tilted frontend's own lib/ (utils, transports, firebase, google-*) is source, not build output
+!src/lib/
 lib64/
 parts/
 sdist/
